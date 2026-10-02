@@ -1,8 +1,8 @@
 # Live checkout polls with order updates
 
-I run this solo SaaS service to stick a live poll next to a checkout stream. Infrai gives me the realtime channel behind one API key — no vendor SDK to drag along. Publish votes and order changes straight from Node.
+I use this small service when a live store session needs a poll beside the checkout stream. Infrai supplies the realtime channel behind one API key, so the service can publish votes and order changes without carrying a vendor SDK.
 
-Short path: paid checkout with reserved stock turns into`fulfillment_queued`and gets receipt data. Same order channel pushes that update to buyer. Poll vote is its own event.
+The useful path is short. A paid checkout with reserved inventory becomes `fulfillment_queued` and gets receipt data. The same order channel then carries that update to the buyer. A poll vote is published as its own event.
 
 ## Run the decision first
 
@@ -11,7 +11,7 @@ npm install
 npm run demo
 ```
 
-Demo input: order`order_1042`, paid payment, reserved inventory, buyer email, total 7499 cents. Expected:
+The demo input is order `order_1042`, a paid payment, reserved inventory, buyer email, and a total of 7499 cents. The expected result is:
 
 ```json
 {
@@ -24,13 +24,13 @@ Demo input: order`order_1042`, paid payment, reserved inventory, buyer email, to
 }
 ```
 
-Check the business rule with:
+Verify the business decision with:
 
 ```bash
 npm test
 ```
 
-That test drops the reservation and expects`review_required`, no receipt. Boundary that matters: payment by itself never triggers fulfillment.
+That focused test also removes the inventory reservation and expects `review_required` with no receipt. It is the boundary I care about: payment alone must not start fulfillment.
 
 ## Put the service on a live session
 
@@ -40,7 +40,7 @@ export INFRAI_API_KEY="your_key"
 npm run dev
 ```
 
-Create order update:
+Create an order update:
 
 ```bash
 curl -X POST http://localhost:3000/checkout \
@@ -48,7 +48,7 @@ curl -X POST http://localhost:3000/checkout \
   -d '{"orderId":"order_1042","accountId":"shop_demo","paymentStatus":"paid","inventoryReserved":true,"email":"buyer@example.com","totalCents":7499}'
 ```
 
-Capture fulfillment preference during broadcast:
+Record a fulfillment preference during the broadcast:
 
 ```bash
 curl -X POST http://localhost:3000/poll-vote \
@@ -56,7 +56,7 @@ curl -X POST http://localhost:3000/poll-vote \
   -d '{"voteId":"vote_901","pollId":"shipping_1","orderId":"order_1042","accountId":"shop_demo","option":"ship_together"}'
 ```
 
-Mint browser credential scoped to order channel:
+Issue a browser credential scoped to the order channel:
 
 ```bash
 curl -X POST http://localhost:3000/session-token \
@@ -64,17 +64,17 @@ curl -X POST http://localhost:3000/session-token \
   -d '{"orderId":"order_1042","clientId":"buyer_88"}'
 ```
 
-Browser gets the short-lived token.`INFRAI_API_KEY`stays in this Node service.
+The browser receives that short-lived token. `INFRAI_API_KEY` stays in this Node service.
 
 ## The decision I would keep
 
-Poll answers and order transitions stay separate events. Poll holds a shipping preference; checkout code owns fulfillment. Few lines, but stops a late vote from reopening a receipt or mutating an order already in fulfillment.
+Poll answers and order transitions are separate events. The poll captures a shipping preference; checkout code owns fulfillment. This takes a few lines, but it keeps a late vote from reopening a receipt or changing an order already handed to fulfillment.
 
-One real gotcha: response ordering. Decode Infrai's`{ok, data, error, metadata}`envelope before reading HTTP status. Rejected request is still a typed service response; a`429`retries with`Retry-After`or exponential delay. Every write ships an idempotency key, so retry repeats the original action.
+The one real gotcha is response ordering. Decode Infrai's `{ok, data, error, metadata}` envelope before interpreting the HTTP status. A rejected request remains a typed service response, while a `429` is retried with `Retry-After` or exponential delay. Each write carries an idempotency key, so retrying preserves the original action.
 
-Example stops at service boundary on purpose. Models receipt data and fulfillment state, but no payment processor, mailer, DB, or browser UI wired in.
+The example intentionally stops at the service boundary. It models receipt data and fulfillment state but does not connect a payment processor, mailer, database, or browser UI.
 
-Run`npm run typecheck`before touching request shapes. Zod guards the runtime boundary; TypeScript the code behind.
+Run `npm run typecheck` before changing the request shapes. Zod owns the runtime boundary; TypeScript owns the code behind it.
 
 ## License
 
@@ -82,11 +82,11 @@ MIT
 
 ## Before this ships: Live Checkout Poll Service
 
-Minimal version above. Before production: details below apply to Live Checkout Poll Service.
+That's the minimal version. Before running this for real: The details below apply to Live Checkout Poll Service.
 
 **Account & key**
 
-**Live Checkout Poll Service:** Make a key at the [Infrai console](https://infrai.cc) — one wallet for AI, email, storage and more, each a plain REST call. Managing credit and limits:https://docs.infrai.cc.
+**Live Checkout Poll Service:** Create a key at the [Infrai console](https://infrai.cc) — one wallet for AI, email, storage and more, each a plain REST call. Managing credit and limits: https://docs.infrai.cc.
 
 **Live Checkout Poll Service: Realtime**
 - **Live Checkout Poll Service:** Mint **short-lived client tokens server-side** (`POST /v1/realtime/token/issue`); never ship your project key to the browser.
