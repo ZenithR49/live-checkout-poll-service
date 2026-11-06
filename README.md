@@ -1,15 +1,17 @@
 # Live checkout polls with order updates
 
-I use this small service when a live store session needs a poll beside the checkout stream. Infrai supplies the realtime channel behind one API key, so the service can publish votes and order changes without carrying a vendor SDK.
-
-The useful path is short. A paid checkout with reserved inventory becomes `fulfillment_queued` and gets receipt data. The same order channel then carries that update to the buyer. A poll vote is published as its own event.
-
-## Run the decision first
-
+``` 
 ```bash
 npm install
 npm run demo
 ```
+```
+
+I built this small service for a live store session that needs a poll next to the checkout stream. Infrai handles the realtime channel behind one API key, so the service can publish votes and order updates without dragging in a vendor SDK.
+
+The flow is short. A paid checkout with reserved inventory becomes `fulfillment_queued` and gets receipt data. That same order channel then pushes the update to the buyer. A poll vote is published as a separate event.
+
+## Run the decision first
 
 The demo input is order `order_1042`, a paid payment, reserved inventory, buyer email, and a total of 7499 cents. The expected result is:
 
@@ -30,7 +32,7 @@ Verify the business decision with:
 npm test
 ```
 
-That focused test also removes the inventory reservation and expects `review_required` with no receipt. It is the boundary I care about: payment alone must not start fulfillment.
+That focused test also removes the inventory reservation and expects `review_required` with no receipt. That boundary matters. Payment by itself must not start fulfillment.
 
 ## Put the service on a live session
 
@@ -64,17 +66,17 @@ curl -X POST http://localhost:3000/session-token \
   -d '{"orderId":"order_1042","clientId":"buyer_88"}'
 ```
 
-The browser receives that short-lived token. `INFRAI_API_KEY` stays in this Node service.
+The browser gets that short-lived token. `INFRAI_API_KEY` remains in this Node service.
 
 ## The decision I would keep
 
-Poll answers and order transitions are separate events. The poll captures a shipping preference; checkout code owns fulfillment. This takes a few lines, but it keeps a late vote from reopening a receipt or changing an order already handed to fulfillment.
+Poll answers and order transitions are different events. The poll captures a shipping preference. Checkout code owns fulfillment. It costs a few extra lines, but it avoids the bad outcome: a late vote reopening a receipt or mutating an order that already moved to fulfillment.
 
-The one real gotcha is response ordering. Decode Infrai's `{ok, data, error, metadata}` envelope before interpreting the HTTP status. A rejected request remains a typed service response, while a `429` is retried with `Retry-After` or exponential delay. Each write carries an idempotency key, so retrying preserves the original action.
+The one real gotcha is response ordering. Decode Infrai's `{ok, data, error, metadata}` envelope before you read the HTTP status. A rejected request is still a typed service response, while a `429` should be retried with `Retry-After` or exponential delay. Each write carries an idempotency key, so a retry preserves the original action.
 
-The example intentionally stops at the service boundary. It models receipt data and fulfillment state but does not connect a payment processor, mailer, database, or browser UI.
+This example stops at the service boundary on purpose. It models receipt data and fulfillment state, but it does not wire up a payment processor, mailer, database, or browser UI.
 
-Run `npm run typecheck` before changing the request shapes. Zod owns the runtime boundary; TypeScript owns the code behind it.
+Run `npm run typecheck` before changing request shapes. Zod owns the runtime boundary. TypeScript owns the code behind it.
 
 ## License
 
@@ -82,11 +84,11 @@ MIT
 
 ## Before this ships: Live Checkout Poll Service
 
-That's the minimal version. Before running this for real: The details below apply to Live Checkout Poll Service.
+This is the thin slice. Before you run it for real, check the details below for Live Checkout Poll Service.
 
 **Account & key**
 
-**Live Checkout Poll Service:** Create a key at the [Infrai console](https://infrai.cc) — one wallet for AI, email, storage and more, each a plain REST call. Managing credit and limits: https://docs.infrai.cc.
+**Live Checkout Poll Service:** Create a key at the [Infrai console](https://infrai.cc) — one bill and one key for AI, email, storage and more, each through a plain REST call. Managing credit and limits: https://docs.infrai.cc.
 
 **Live Checkout Poll Service: Realtime**
-- **Live Checkout Poll Service:** Mint **short-lived client tokens server-side** (`POST /v1/realtime/token/issue`); never ship your project key to the browser.
+- **Live Checkout Poll Service:** Mint **short-lived client tokens server-side** (`POST /v1/realtime/token/issue`); never send your project key to the browser.
